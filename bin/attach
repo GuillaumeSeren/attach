@@ -1,0 +1,93 @@
+#!/bin/sh
+
+# Defaults
+XDG_CACHE_HOME=${XDG_CACHE_HOME:-~/.cache}
+
+help() {
+  status=${1:-0}
+  cat <<EOF
+Usage
+‾‾‾‾‾
+$ attach [option]… <token>
+
+Tokens
+‾‾‾‾‾‾
+– directory: list attachable sockets
+– socket: attach to socket
+– command: attach or create new session
+
+Options
+‾‾‾‾‾‾‾
+– -help: display a help message and quit
+EOF
+  exit $status
+}
+
+main() {
+
+  [ $# = 0 ] &&
+  {
+    help 1
+  }
+
+  # Parse argument
+  case $1 in
+    -help)
+      help
+    ;;
+    -*)
+      echo "Error while parsing parameters: unknown option $1"
+      help 1
+    ;;
+    *)
+      token=$1
+    ;;
+  esac
+  shift
+
+  # Export
+  pool=$XDG_CACHE_HOME/attach
+
+  if test -d $token -a -d $pool/$(realpath $token); then
+    directory=$token
+    list $directory
+  elif test -S $token; then
+    socket=$token
+    attach $socket
+  elif command -v $token > /dev/null; then
+    command=$token
+    new $command "$@"
+  else
+    echo "Error while parsing tokens: unknown command $token"
+    help 1
+  fi
+
+}
+
+new() {
+
+  command=$1
+  shift
+
+  # Socket
+  id=$(printf %.7s $(printf %s "$@" | sha256sum))
+  socket=$pool/$PWD/$command-$id
+  mkdir --parents $(dirname $socket)
+
+  # Attach or create new session, but prevent to attach when there is no terminal
+  [ -t 1 ] && flag=A || flag=n
+  dtach -$flag $socket $command "$@"
+
+}
+
+attach() {
+  socket=$1
+  dtach -a $socket
+}
+
+list() {
+  path=$1
+  find $(realpath $pool/$(realpath $path)) -type s
+}
+
+main "$@"
