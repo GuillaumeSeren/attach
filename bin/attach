@@ -72,11 +72,15 @@ new() {
   # Socket
   id=$(printf %.7s $(printf %s "$@" | sha256sum))
   socket=$pool/$PWD/$command-$id
-  mkdir --parents $(dirname $socket)
+  container=$(dirname $socket)
+  mkdir --parents $container
 
   # Attach or create new session, but prevent to attach when there is no terminal
   [ -t 1 ] && flag=A || flag=n
   dtach -$flag $socket $command "$@"
+
+  # Clean
+  rmdir --parents $container 2> /dev/null
 
 }
 
